@@ -21,6 +21,7 @@
         <button onclick="armSystem()" id="btn-arm" class="w-full bg-[#ccff00] text-black py-5 rounded-3xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-[#ccff00]/10 border-b-4 border-black/20">
             Arm Tactical System
         </button>
+        <button onclick="clearTargetID()" class="mt-4 text-zinc-600 text-[8px] uppercase tracking-widest hover:text-white transition-colors">Reset Linked ID</button>
     </div>
 
     <div id="alert-panel" class="fixed inset-0 bg-red-600 z-[100] flex flex-col items-center justify-center p-8 hidden">
@@ -42,10 +43,9 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, onValue, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
         import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
 
-        // --- CONFIGURACIÓN ---
         const firebaseConfig = {
             apiKey: "AIzaSyDVIQ4S-w4Ag40uYuArW3o7Hw2XQwoQV7U",
             authDomain: "montcode-e02c7.firebaseapp.com",
@@ -56,14 +56,13 @@
             appId: "1:988300151844:web:b1a31275a9555de98a9cb1"
         };
 
-        // LLAVE DEL SENDER (ID ÚNICO) - Cambia esto por el ID real del paciente
-        const PATIENT_ID = "MONTC-12345"; 
+        // LÓGICA DE PAREO DINÁMICO
+        let PATIENT_ID = localStorage.getItem('monitor_target_id');
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const messaging = getMessaging(app);
 
-        // --- MOTOR DE SONIDO ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let alarmOscillator = null;
 
@@ -80,41 +79,48 @@
             return osc;
         }
 
-        // --- REGISTRO SERVICE WORKER ---
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/firebase-messaging-sw.js')
             .then((reg) => {
                 Notification.requestPermission().then((perm) => {
                     if (perm === 'granted') {
                         getToken(messaging, { vapidKey: 'BLvXmJRba9sPidOT9vrNIi3XvLXI9QdfDd6WAKiYTK4hZM9t9gqUoovVRYxFIsiHD4mkuVr2sRfrJU8eWLYeXq0' })
-                        .then((token) => console.log("Device Token:", token));
+                        .then((token) => console.log("Receiver Token:", token));
                     }
                 });
             });
         }
 
-        // --- ACTIVAR ESCUCHA ---
+        window.clearTargetID = () => {
+            localStorage.removeItem('monitor_target_id');
+            location.reload();
+        };
+
         window.armSystem = async () => {
+            // Si no hay ID, lo pedimos antes de armar
+            if (!PATIENT_ID) {
+                const input = prompt("ENTER PATIENT RESCUE ID (from Sender app):");
+                if (!input) return;
+                PATIENT_ID = input.toUpperCase().trim();
+                localStorage.setItem('monitor_target_id', PATIENT_ID);
+            }
+
             if (audioCtx.state === 'suspended') await audioCtx.resume();
             
-            document.getElementById('btn-arm').innerText = "ACTIVE & GUARDING 🛡️";
+            document.getElementById('btn-arm').innerText = "GUARDING ID: " + PATIENT_ID;
             document.getElementById('btn-arm').className = "w-full bg-zinc-800 text-zinc-500 py-5 rounded-3xl font-black text-xs uppercase tracking-widest cursor-default border-b-4 border-black/40";
-            document.getElementById('status-sub').innerText = `Monitoring: ${PATIENT_ID}`;
+            document.getElementById('status-sub').innerText = "Tactical Link Established";
             document.getElementById('status-sub').classList.add('text-[#ccff00]', 'animate-pulse');
 
-            // ESCUCHA FILTRADA: Solo alertas que coincidan con el PatientID
-            const alertsRef = ref(db, 'alerts/');
-            onValue(alertsRef, (snap) => {
+            // ESCUCHA DIRECTA AL NODO DEL PACIENTE
+            const alertRef = ref(db, 'alerts/' + PATIENT_ID);
+            onValue(alertRef, (snap) => {
                 const data = snap.val();
                 if (data) {
-                    // Buscamos la última alerta del paciente específico
-                    const latest = Object.values(data)
-                        .filter(a => a.patientId === PATIENT_ID)
-                        .sort((a,b) => b.timestamp - a.timestamp)[0];
-
-                    // Si la alerta es reciente (últimos 30 seg), disparar sirena
-                    if (latest && (Date.now() - latest.timestamp < 30000)) {
-                        triggerAlarm(latest);
+                    // Validamos que la señal sea reciente (últimos 30 seg)
+                    const isRecent = (Date.now() - data.timestamp < 30000);
+                    if (isRecent) {
+                        triggerAlarm(data);
                     }
                 }
             });
@@ -122,8 +128,8 @@
 
         function triggerAlarm(data) {
             document.getElementById('alert-panel').classList.remove('hidden');
-            document.getElementById('alert-name').innerText = data.patientName || "Unknown Patient";
-            document.getElementById('alert-coords').innerText = data.location || "GPS Denied";
+            document.getElementById('alert-name').innerText = data.patientName || "Unknown";
+            document.getElementById('alert-coords').innerText = data.location || "GPS Hidden";
             
             if (!alarmOscillator) alarmOscillator = playSirene();
             if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
