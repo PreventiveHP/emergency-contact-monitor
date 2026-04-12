@@ -1,65 +1,74 @@
- // sw.js - Service Worker Centinela (Background)
+ // sw.js - MontCode™ Tactical Sentinel (v6.2 Professional)
 // -----------------------------------------------------------------------
 
-// 1. Instalación del Service Worker
+// 1. Instalación y Control Inmediato
 self.addEventListener('install', (event) => {
-    console.log('[SW] Instalado - Centinela listo.');
+    console.log('[SW] Instalado: MontCode™ Sentinel listo.');
     self.skipWaiting();
 });
 
-// 2. Activación
+// 2. Activación y Limpieza de Caché
 self.addEventListener('activate', (event) => {
-    console.log('[SW] Activo - Escuchando pulsos de Firebase.');
+    console.log('[SW] Activo: Escuchando pulsos de alta prioridad.');
+    event.waitUntil(clients.claim()); 
 });
 
-// 3. Manejador de Notificaciones Push (Background)
+// 3. Manejador de Notificaciones Push (FCM Integration)
+// Este es el corazón de la comunicación con la app cerrada.
 self.addEventListener('push', function(event) {
-    let data = {};
-    if (event.data) {
-        data = event.data.json();
+    let data = {
+        title: '🚨 RESCUE ALERT',
+        body: 'Emergency detected. Tap to open tactical map.',
+        name: 'Patient'
+    };
+
+    try {
+        if (event.data) {
+            data = event.data.json();
+        }
+    } catch (e) {
+        console.warn('[SW] Push data no era JSON, usando fallback.');
     }
 
-    const title = data.title || '🚨 ALERTA DE RESCATE: MONTPATH';
     const options = {
-        body: data.body || 'Se ha detectado una emergencia activa. Pulse para ver detalles.',
+        body: data.body,
         icon: 'logo.png.jpg',
         badge: 'logo.png.jpg',
-        vibrate: [500, 110, 500, 110, 450, 110, 200, 110, 170, 40],
-        tag: 'rescue-notification', // Evita que se amontonen las notificaciones
+        vibrate: [500, 100, 500, 100, 500, 100, 500], // Patrón de emergencia
+        tag: 'rescue-id-' + (data.patientID || 'emergency'), // Agrupa si es el mismo paciente
         renotify: true,
-        requireInteraction: true, // No desaparece hasta que el familiar la toque
+        requireInteraction: true, // CRÍTICO: La notificación no se va sola.
+        priority: 'high',
+        data: {
+            url: self.location.origin // Guarda la URL para abrirla al hacer click
+        },
         actions: [
-            { action: 'open', title: 'VER MAPA TÁCTICO' },
-            { action: 'close', title: 'SILENCIAR' }
+            { action: 'open', title: 'VIEW MAP' },
+            { action: 'close', title: 'DISMISS' }
         ]
     };
 
     event.waitUntil(
-        self.registration.showNotification(title, options)
+        self.registration.showNotification(data.title, options)
     );
 });
 
-// 4. Lógica al tocar la notificación
+// 4. Lógica de Interacción (Click)
 self.addEventListener('notificationclick', function(event) {
     event.notification.close();
 
-    if (event.action === 'close') {
-        return; // Solo cierra la alerta
-    }
+    if (event.action === 'close') return;
 
-    // Si toca la notificación, abre la aplicación del Monitor
+    // Intentar reenfocar la app o abrir una nueva ventana
     event.waitUntil(
-        clients.matchAll({ type: 'window' }).then((windowClients) => {
-            // Si la app ya está abierta, ponle el foco
-            for (var i = 0; i < windowClients.length; i++) {
-                var client = windowClients[i];
-                if (client.url === '/' && 'focus' in client) {
-                    return client.focus();
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+            for (let client of windowClients) {
+                if (client.visibilityState === 'hidden' || client.visibilityState === 'visible') {
+                    if ('focus' in client) return client.focus();
                 }
             }
-            // Si no está abierta, ábrela
             if (clients.openWindow) {
-                return clients.openWindow('/');
+                return clients.openWindow('./');
             }
         })
     );
