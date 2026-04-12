@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MontCode™ Rescue Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-white font-sans min-h-screen flex flex-col items-center p-6">
+
+    <header class="text-center mb-8">
+        <h1 class="text-[#ccff00] text-2xl font-black italic tracking-tighter uppercase">Rescue Monitor</h1>
+        <p class="text-zinc-500 text-[10px] tracking-[0.3em]">CENTRO DE COMANDO FAMILIAR</p>
+    </header>
+
+    <div id="status-card" class="w-full max-w-sm bg-zinc-900 border border-zinc-800 p-6 rounded-3xl text-center mb-6">
+        <div id="pulse-ring" class="w-16 h-16 bg-zinc-800 rounded-full mx-auto mb-4 flex items-center justify-center border-2 border-zinc-700">
+            <span class="text-2xl">📡</span>
+        </div>
+        <h2 id="monitor-state" class="text-zinc-400 font-bold uppercase text-xs tracking-widest">Esperando Señal...</h2>
+        <button onclick="armSystem()" class="mt-4 bg-[#ccff00] text-black px-6 py-2 rounded-full font-black text-[10px] uppercase">
+            Activar Alerta de Audio
+        </button>
+    </div>
+
+    <div id="alert-panel" class="hidden w-full max-w-sm bg-red-600 p-6 rounded-3xl animate-bounce shadow-[0_0_50px_rgba(220,38,38,0.5)]">
+        <h2 class="text-white font-black text-xl italic uppercase">🚨 ¡EMERGENCIA ACTIVA!</h2>
+        <p id="patient-info" class="text-white/90 text-sm mt-2 font-bold"></p>
+        <div id="location-link" class="mt-4 bg-white text-red-600 p-3 rounded-xl text-center font-black text-xs uppercase cursor-pointer">
+            Ver Ubicación en Mapa
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDVIQ4S-w4Ag40uYuArW3o7Hw2XQwoQV7U",
+            authDomain: "montcode-e02c7.firebaseapp.com",
+            databaseURL: "https://montcode-e02c7-default-rtdb.firebaseio.com",
+            projectId: "montcode-e02c7",
+            storageBucket: "montcode-e02c7.firebasestorage.app",
+            messagingSenderId: "988300151844",
+            appId: "1:988300151844:web:b1a31275a9555de98a9cb1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // --- ESCUCHAR ALERTAS ---
+        // Usamos el ID del paciente que quieres monitorear (o una rama general)
+        const alertsRef = ref(db, 'alerts/');
+
+        onValue(alertsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                // Si hay data, disparamos la alerta visual y sonora
+                processAlert(data);
+            }
+        });
+
+        function processAlert(data) {
+            // Buscamos el ID que esté en estado CRITICAL
+            const ids = Object.keys(data);
+            const latestId = ids[ids.length - 1];
+            const alert = data[latestId];
+
+            if (alert.status === 'CRITICAL') {
+                document.getElementById('alert-panel').classList.remove('hidden');
+                document.getElementById('monitor-state').innerText = "ALERTA RECIBIDA";
+                document.getElementById('patient-info').innerText = `Paciente: ${alert.patientName}`;
+                
+                // Sonar alarma (debe haber interacción previa del usuario)
+                playEmergencyAudio();
+                
+                document.getElementById('location-link').onclick = () => {
+                    window.open(`https://www.google.com/maps?q=${alert.location}`, '_blank');
+                };
+            }
+        }
+
+        // --- SISTEMA DE AUDIO ---
+        let audio = new Audio('https://actions.google.com/sounds/v1/alarms/emergency_it_is_an_emergency.ogg');
+        audio.loop = true;
+
+        window.armSystem = () => {
+            // El navegador requiere que el usuario toque algo para permitir audio
+            audio.play().then(() => {
+                audio.pause();
+                alert("Sistema Armado: Sonará en caso de emergencia.");
+                document.getElementById('monitor-state').innerText = "SISTEMA ARMADO ✅";
+            });
+            
+            // Pedir permiso para notificaciones push
+            Notification.requestPermission();
+        };
+
+        function playEmergencyAudio() {
+            audio.play();
+        }
+
+        // Registrar Service Worker para notificaciones background
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>
