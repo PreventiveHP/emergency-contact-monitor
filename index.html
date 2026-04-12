@@ -1,34 +1,49 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MontCode™ Rescue Monitor</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body class="bg-black text-white font-sans min-h-screen flex flex-col items-center p-6">
 
-    <header class="text-center mb-8">
+    <header class="text-center mb-8 mt-4">
+        <div class="w-16 h-16 bg-zinc-900 rounded-full mx-auto mb-4 border-2 border-[#ccff00]/20 overflow-hidden">
+            <img src="logo.png.jpg" alt="Logo" class="w-full h-full object-cover">
+        </div>
         <h1 class="text-[#ccff00] text-2xl font-black italic tracking-tighter uppercase">Rescue Monitor</h1>
-        <p class="text-zinc-500 text-[10px] tracking-[0.3em]">CENTRO DE COMANDO FAMILIAR</p>
+        <p class="text-zinc-500 text-[10px] tracking-[0.3em] uppercase">Tactical Receiver v5.9</p>
     </header>
 
-    <div id="status-card" class="w-full max-w-sm bg-zinc-900 border border-zinc-800 p-6 rounded-3xl text-center mb-6">
-        <div id="pulse-ring" class="w-16 h-16 bg-zinc-800 rounded-full mx-auto mb-4 flex items-center justify-center border-2 border-zinc-700">
-            <span class="text-2xl">📡</span>
+    <div id="status-card" class="w-full max-w-sm bg-zinc-900/50 border border-zinc-800 p-8 rounded-[2rem] text-center mb-6 shadow-xl">
+        <div id="status-icon" class="w-20 h-20 bg-zinc-800 rounded-full mx-auto mb-6 flex items-center justify-center border-2 border-zinc-700 transition-all">
+            <span id="emoji-state" class="text-3xl">📡</span>
         </div>
-        <h2 id="monitor-state" class="text-zinc-400 font-bold uppercase text-xs tracking-widest">Esperando Señal...</h2>
-        <button onclick="armSystem()" class="mt-4 bg-[#ccff00] text-black px-6 py-2 rounded-full font-black text-[10px] uppercase">
-            Activar Alerta de Audio
+        <h2 id="monitor-state" class="text-zinc-400 font-bold uppercase text-[10px] tracking-[0.2em] mb-6">Desconectado</h2>
+        
+        <button onclick="armSystem()" class="w-full bg-[#ccff00] text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-[#ccff00]/10">
+            Armar Sistema de Audio
         </button>
     </div>
 
-    <div id="alert-panel" class="hidden w-full max-w-sm bg-red-600 p-6 rounded-3xl animate-bounce shadow-[0_0_50px_rgba(220,38,38,0.5)]">
-        <h2 class="text-white font-black text-xl italic uppercase">🚨 ¡EMERGENCIA ACTIVA!</h2>
-        <p id="patient-info" class="text-white/90 text-sm mt-2 font-bold"></p>
-        <div id="location-link" class="mt-4 bg-white text-red-600 p-3 rounded-xl text-center font-black text-xs uppercase cursor-pointer">
-            Ver Ubicación en Mapa
+    <div id="alert-panel" class="hidden w-full max-w-sm bg-red-600 p-8 rounded-[2rem] animate-pulse shadow-[0_0_60px_rgba(220,38,38,0.6)] border-4 border-white/20">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="text-3xl">🚨</span>
+            <h2 class="text-white font-black text-2xl italic uppercase tracking-tighter">Emergencia</h2>
         </div>
+        <p id="patient-info" class="text-white font-bold text-lg mb-6"></p>
+        
+        <button id="location-btn" class="w-full bg-white text-red-600 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg">
+            Ver Ubicación GPS
+        </button>
+        
+        <button onclick="stopAlarm()" class="w-full mt-4 bg-black/20 text-white/80 py-2 rounded-xl font-bold text-[10px] uppercase">
+            Silenciar Alarma local
+        </button>
     </div>
 
     <script type="module">
@@ -47,62 +62,69 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
+        
+        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/emergency_it_is_an_emergency.ogg');
+        audio.loop = true;
 
-        // --- ESCUCHAR ALERTAS ---
-        // Usamos el ID del paciente que quieres monitorear (o una rama general)
+        // --- LÓGICA DE ARMADO ---
+        window.armSystem = () => {
+            audio.play().then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+                document.getElementById('monitor-state').innerText = "Sistema Armado & Escuchando";
+                document.getElementById('status-icon').classList.replace('bg-zinc-800', 'bg-[#ccff00]/10');
+                document.getElementById('status-icon').classList.add('border-[#ccff00]');
+                document.getElementById('emoji-state').innerText = "🛡️";
+                console.log("Audio desbloqueado y Sistema Armado.");
+            }).catch(e => console.error("Error al armar audio:", e));
+            
+            if ("Notification" in window) {
+                Notification.requestPermission();
+            }
+        };
+
+        window.stopAlarm = () => {
+            audio.pause();
+            audio.currentTime = 0;
+            document.getElementById('alert-panel').classList.add('hidden');
+            document.getElementById('status-card').classList.remove('hidden');
+        };
+
+        // --- ESCUCHA EN TIEMPO REAL ---
         const alertsRef = ref(db, 'alerts/');
-
         onValue(alertsRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
-                // Si hay data, disparamos la alerta visual y sonora
-                processAlert(data);
+                const ids = Object.keys(data);
+                const latestAlert = data[ids[ids.length - 1]];
+
+                if (latestAlert.status === 'CRITICAL') {
+                    triggerVisualAlert(latestAlert);
+                }
             }
         });
 
-        function processAlert(data) {
-            // Buscamos el ID que esté en estado CRITICAL
-            const ids = Object.keys(data);
-            const latestId = ids[ids.length - 1];
-            const alert = data[latestId];
-
-            if (alert.status === 'CRITICAL') {
-                document.getElementById('alert-panel').classList.remove('hidden');
-                document.getElementById('monitor-state').innerText = "ALERTA RECIBIDA";
-                document.getElementById('patient-info').innerText = `Paciente: ${alert.patientName}`;
-                
-                // Sonar alarma (debe haber interacción previa del usuario)
-                playEmergencyAudio();
-                
-                document.getElementById('location-link').onclick = () => {
-                    window.open(`https://www.google.com/maps?q=${alert.location}`, '_blank');
-                };
-            }
-        }
-
-        // --- SISTEMA DE AUDIO ---
-        let audio = new Audio('https://actions.google.com/sounds/v1/alarms/emergency_it_is_an_emergency.ogg');
-        audio.loop = true;
-
-        window.armSystem = () => {
-            // El navegador requiere que el usuario toque algo para permitir audio
-            audio.play().then(() => {
-                audio.pause();
-                alert("Sistema Armado: Sonará en caso de emergencia.");
-                document.getElementById('monitor-state').innerText = "SISTEMA ARMADO ✅";
-            });
+        function triggerVisualAlert(alertData) {
+            document.getElementById('status-card').classList.add('hidden');
+            document.getElementById('alert-panel').classList.remove('hidden');
+            document.getElementById('patient-info').innerText = alertData.patientName || "Paciente Desconocido";
             
-            // Pedir permiso para notificaciones push
-            Notification.requestPermission();
-        };
+            // Intentar reproducir alarma
+            audio.play().catch(e => console.log("Esperando interacción para sonar..."));
 
-        function playEmergencyAudio() {
-            audio.play();
+            document.getElementById('location-btn').onclick = () => {
+                if(alertData.location && alertData.location !== "No GPS Data") {
+                    window.open(`https://www.google.com/maps?q=${alertData.location}`, '_blank');
+                } else {
+                    alert("No hay coordenadas disponibles.");
+                }
+            };
         }
 
-        // Registrar Service Worker para notificaciones background
+        // Service Worker
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log("Service Worker Registrado correctamente."));
         }
     </script>
 </body>
