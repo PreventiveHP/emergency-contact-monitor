@@ -3,73 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MontCode™ Rescue Monitor</title>
+    <title>MontCode™ Rescue Receiver</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
-<body class="bg-black text-white font-sans min-h-screen flex flex-col items-center p-6 overflow-x-hidden pb-24">
+<body class="bg-black text-white flex flex-col items-center justify-center min-h-screen p-6 font-sans overflow-hidden">
 
-    <header class="text-center mb-8 mt-4">
-        <div class="w-16 h-16 bg-zinc-900 rounded-full mx-auto mb-4 border-2 border-[#ccff00]/20 overflow-hidden">
+    <div id="status-card" class="w-full max-w-md bg-zinc-900 border border-zinc-800 p-10 rounded-[3rem] text-center shadow-2xl transition-all duration-500">
+        <div class="w-24 h-24 mx-auto mb-8 bg-zinc-800 rounded-full flex items-center justify-center border-4 border-zinc-700 shadow-inner overflow-hidden">
             <img src="logo.png.jpg" alt="Logo" class="w-full h-full object-cover">
         </div>
-        <h1 class="text-[#ccff00] text-2xl font-black italic tracking-tighter uppercase leading-none">Rescue Monitor</h1>
-        <p class="text-zinc-500 text-[10px] tracking-[0.3em] uppercase mt-1">Tactical Receiver v6.4</p>
-    </header>
-
-    <div id="link-screen" class="w-full max-w-sm bg-zinc-900/50 border border-zinc-800 p-8 rounded-[2rem] text-center mb-6 shadow-xl hidden">
-        <h2 class="text-[#ccff00] font-black text-xs uppercase tracking-[0.2em] mb-4">Link Patient Device</h2>
-        <input type="text" id="target-id" placeholder="ENTER RESCUE ID (MC-XXXX)" 
-               class="w-full bg-black border border-zinc-800 p-4 rounded-2xl mb-4 text-center text-[#ccff00] font-mono text-xl outline-none focus:border-[#ccff00] transition-all uppercase">
-        <button onclick="saveTargetID()" class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all">
-            Link and Monitor
-        </button>
-    </div>
-
-    <div id="status-card" class="w-full max-w-sm bg-zinc-900/50 border border-zinc-800 p-8 rounded-[2rem] text-center mb-6 shadow-xl transition-all duration-500">
-        <div id="status-icon" class="w-20 h-20 bg-zinc-800 rounded-full mx-auto mb-6 flex items-center justify-center border-2 border-zinc-700 transition-all shadow-inner">
-            <span id="emoji-state" class="text-3xl">📡</span>
-        </div>
-        <p id="monitoring-label" class="text-[#ccff00] text-[10px] font-mono mb-2 hidden"></p>
-        <h2 id="monitor-state-text" class="text-zinc-400 font-bold uppercase text-[10px] tracking-[0.2em] mb-6">System Disarmed</h2>
+        <h2 class="text-3xl font-black italic uppercase tracking-tighter text-[#ccff00] mb-2">Monitor Mode</h2>
+        <p id="status-sub" class="text-zinc-500 text-[10px] uppercase tracking-[0.4em] mb-10 font-bold">System Standby</p>
         
-        <button id="arm-btn" onclick="armSystem()" class="w-full bg-[#ccff00] text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-[#ccff00]/10">
+        <button onclick="armSystem()" id="btn-arm" class="w-full bg-[#ccff00] text-black py-5 rounded-3xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-[#ccff00]/10 border-b-4 border-black/20">
             Arm Tactical System
         </button>
-        
-        <div class="mt-8 pt-6 border-t border-zinc-800 text-left">
-            <h3 class="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-4">Emergency Contacts</h3>
-            <div id="contacts-list" class="space-y-3"></div>
-            <button onclick="toggleContactForm()" class="mt-4 text-[#ccff00] text-[9px] font-bold uppercase">+ Add Contact</button>
-        </div>
-
-        <button onclick="clearTargetID()" class="mt-10 text-zinc-600 text-[8px] uppercase font-bold tracking-widest hover:text-white block mx-auto italic">Reset Receiver</button>
     </div>
 
-    <div id="alert-panel" class="hidden w-full max-w-sm bg-red-600 p-8 rounded-[2rem] animate-pulse shadow-[0_0_60px_rgba(220,38,38,0.6)] border-4 border-white/20">
-        <div class="flex items-center gap-3 mb-4">
-            <span class="text-3xl">🚨</span>
-            <h2 class="text-white font-black text-2xl italic uppercase tracking-tighter">Emergency</h2>
+    <div id="alert-panel" class="fixed inset-0 bg-red-600 z-[100] flex flex-col items-center justify-center p-8 hidden">
+        <div class="absolute inset-0 bg-red-700 animate-pulse opacity-50"></div>
+        <div class="relative z-10 flex flex-col items-center text-center">
+            <h1 class="text-8xl font-black italic mb-6 animate-bounce tracking-tighter">SOS</h1>
+            <div class="bg-black/20 p-8 rounded-[2rem] backdrop-blur-md border border-white/10 w-full max-w-sm">
+                <p class="text-zinc-200 text-[10px] uppercase tracking-widest mb-2 font-black">Rescue Signal Detected</p>
+                <p class="text-4xl font-black uppercase tracking-tighter" id="alert-name">---</p>
+                <hr class="my-4 border-white/20">
+                <p class="text-sm font-mono font-bold opacity-90" id="alert-coords">Awaiting GPS...</p>
+            </div>
+            
+            <button onclick="stopAlarm()" class="mt-12 bg-white text-red-600 px-16 py-5 rounded-full font-black uppercase tracking-widest shadow-2xl active:scale-90 transition-all border-b-4 border-zinc-300">
+                Silence Alarm
+            </button>
         </div>
-        <p id="patient-info" class="text-white font-bold text-lg mb-2"></p>
-        <p id="alert-time" class="text-white/60 font-mono text-[10px] mb-6"></p>
-        
-        <button id="location-btn" class="w-full bg-white text-red-600 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all mb-3">
-            Open GPS Location
-        </button>
-        
-        <div id="emergency-call-zone" class="space-y-2"></div>
-
-        <button onclick="stopAlarm()" class="w-full mt-6 bg-black/20 text-white/80 py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest">
-            Mute Alarm
-        </button>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDVIQ4S-w4Ag40uYuArW3o7Hw2XQwoQV7U",
@@ -83,110 +57,69 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        
-        // Sonido de emergencia de alta visibilidad
-        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/emergency_it_is_an_emergency.ogg');
-        audio.loop = true;
+        const messaging = getMessaging(app);
 
-        let currentTargetID = localStorage.getItem('linked_rescue_id');
-        let contacts = JSON.parse(localStorage.getItem('rescue_contacts')) || [];
+        // --- AUDIO ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let alarmOscillator = null;
 
-        window.onload = () => {
-            renderContacts();
-            if (!currentTargetID) {
-                document.getElementById('link-screen').classList.remove('hidden');
-                document.getElementById('status-card').classList.add('hidden');
-            } else {
-                showMonitoringLabel();
-            }
-        };
+        function playSirene() {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.loop = true;
+            osc.start();
+            return osc;
+        }
 
-        // --- LÓGICA DE MONITOREO ---
-        window.saveTargetID = () => {
-            const id = document.getElementById('target-id').value.trim().toUpperCase();
-            if (id.includes('MC-')) {
-                localStorage.setItem('linked_rescue_id', id);
-                location.reload();
-            }
-        };
+        // --- REGISTRO SW ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/firebase-messaging-sw.js')
+            .then((reg) => {
+                Notification.requestPermission().then((perm) => {
+                    if (perm === 'granted') {
+                        // VAPID KEY INTEGRADA DESDE TU IMAGEN DE FIREBASE
+                        getToken(messaging, { vapidKey: 'BLvXmJRba9sPidOT9vrNIi3XvLXI9QdfDd6WAKiYTK4hZM9t9gqUoovVRYxFIsiHD4mkuVr2sRfrJU8eWLYeXq0' })
+                        .then((token) => console.log("Device Token:", token))
+                        .catch((err) => console.log("Token Error:", err));
+                    }
+                });
+            });
+        }
 
         window.armSystem = async () => {
-            try {
-                // Desbloqueo de audio obligatorio para navegadores
-                await audio.play();
-                audio.pause();
-                audio.currentTime = 0;
-                
-                updateUIState();
-                startListening();
-            } catch (e) {
-                console.warn("Audio interaction needed");
-                updateUIState();
-                startListening();
-            }
-        };
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+            
+            document.getElementById('btn-arm').innerText = "ACTIVE & GUARDING 🛡️";
+            document.getElementById('btn-arm').className = "w-full bg-zinc-800 text-zinc-500 py-5 rounded-3xl font-black text-xs uppercase tracking-widest cursor-default border-b-4 border-black/40";
+            document.getElementById('status-sub').innerText = "Monitoring Real-Time Signals...";
+            document.getElementById('status-sub').classList.add('text-[#ccff00]', 'animate-pulse');
 
-        function startListening() {
-            const alertRef = ref(db, `alerts/${currentTargetID}`);
-            onValue(alertRef, (snapshot) => {
-                const data = snapshot.val();
-                // Verificamos si hay señal crítica y si la señal de audio es la correcta
-                if (data && data.status === 'CRITICAL') {
-                    // Solo disparar si la alerta es de los últimos 5 minutos para evitar alarmas viejas al abrir la app
-                    if ((Date.now() - data.timestamp) < 300000) {
-                        triggerVisualAlert(data);
-                    }
+            onValue(ref(db, 'alerts/'), (snap) => {
+                const data = snap.val();
+                if (data) {
+                    const latest = Object.values(data).sort((a,b) => b.timestamp - a.timestamp)[0];
+                    if (latest && (Date.now() - latest.timestamp < 15000)) triggerAlarm(latest);
                 }
             });
-        }
-
-        function triggerVisualAlert(alertData) {
-            document.getElementById('status-card').classList.add('hidden');
-            document.getElementById('alert-panel').classList.remove('hidden');
-            document.getElementById('patient-info').innerText = alertData.patientName || "Unknown Patient";
-            document.getElementById('alert-time').innerText = new Date(alertData.timestamp).toLocaleTimeString();
-            
-            // Acción de audio infalible tras el "Arm System"
-            audio.play().catch(e => console.log("Audio play failed", e));
-            
-            if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
-
-            // Corrección del link de mapas
-            document.getElementById('location-btn').onclick = () => {
-                window.open(`https://www.google.com/maps/search/?api=1&query=${alertData.location}`, '_blank');
-            };
-        }
-
-        // Funciones auxiliares (Render, Delete, Reset...) permanecen igual para mantener integridad
-        window.clearTargetID = () => { localStorage.removeItem('linked_rescue_id'); location.reload(); };
-        window.stopAlarm = () => { 
-            audio.pause(); 
-            audio.currentTime = 0; 
-            document.getElementById('alert-panel').classList.add('hidden');
-            document.getElementById('status-card').classList.remove('hidden');
         };
-        function showMonitoringLabel() { 
-            const label = document.getElementById('monitoring-label');
-            label.innerText = `TARGET: ${currentTargetID}`;
-            label.classList.remove('hidden');
+
+        function triggerAlarm(data) {
+            document.getElementById('alert-panel').classList.remove('hidden');
+            document.getElementById('alert-name').innerText = data.patientName || "Unknown Patient";
+            document.getElementById('alert-coords').innerText = data.location;
+            if (!alarmOscillator) alarmOscillator = playSirene();
+            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
         }
-        function updateUIState() {
-            const stateText = document.getElementById('monitor-state-text');
-            stateText.innerText = "Monitoring Active";
-            stateText.className = "text-[#ccff00] font-black uppercase text-[10px] tracking-[0.2em] mb-6 animate-pulse";
-            document.getElementById('status-icon').className = "w-20 h-20 bg-[#ccff00]/20 rounded-full mx-auto mb-6 flex items-center justify-center border-2 border-[#ccff00] shadow-[0_0_20px_rgba(204,255,0,0.4)]";
-            document.getElementById('emoji-state').innerText = "🛡️";
-            document.getElementById('arm-btn').classList.add('hidden');
-        }
-        function renderContacts() {
-            const list = document.getElementById('contacts-list');
-            const callZone = document.getElementById('emergency-call-zone');
-            list.innerHTML = ''; callZone.innerHTML = '';
-            contacts.forEach((c, index) => {
-                list.innerHTML += `<div class="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-zinc-800"><div><p class="text-white text-[10px] font-bold uppercase">${c.name}</p><p class="text-zinc-500 text-[9px] font-mono">${c.phone}</p></div><button onclick="deleteContact(${index})" class="text-red-900 text-[10px]">✕</button></div>`;
-                callZone.innerHTML += `<a href="tel:${c.phone}" class="w-full bg-red-800 text-white py-3 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2"><span>📞</span> Call ${c.name}</a>`;
-            });
-        }
+
+        window.stopAlarm = () => {
+            if (alarmOscillator) { alarmOscillator.stop(); alarmOscillator = null; }
+            document.getElementById('alert-panel').classList.add('hidden');
+        };
     </script>
 </body>
 </html>
