@@ -16,7 +16,7 @@
             <img src="logo.png.jpg" alt="Logo" class="w-full h-full object-cover">
         </div>
         <h1 class="text-[#ccff00] text-2xl font-black italic tracking-tighter uppercase leading-none">Rescue Monitor</h1>
-        <p class="text-zinc-500 text-[10px] tracking-[0.3em] uppercase mt-1">Tactical Receiver v6.2</p>
+        <p class="text-zinc-500 text-[10px] tracking-[0.3em] uppercase mt-1">Tactical Receiver v6.3</p>
     </header>
 
     <div id="link-screen" class="w-full max-w-sm bg-zinc-900/50 border border-zinc-800 p-8 rounded-[2rem] text-center mb-6 shadow-xl hidden">
@@ -33,12 +33,14 @@
             <span id="emoji-state" class="text-3xl">📡</span>
         </div>
         <p id="monitoring-label" class="text-[#ccff00] text-[10px] font-mono mb-2 hidden"></p>
-        <h2 id="monitor-state" class="text-zinc-400 font-bold uppercase text-[10px] tracking-[0.2em] mb-6">System Disarmed</h2>
+        
+        <h2 id="monitor-state-text" class="text-zinc-400 font-bold uppercase text-[10px] tracking-[0.2em] mb-6">System Disarmed</h2>
         
         <button id="arm-btn" onclick="armSystem()" class="w-full bg-[#ccff00] text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-[#ccff00]/10">
             Arm Tactical System
         </button>
-        <button onclick="clearTargetID()" class="mt-4 text-zinc-600 text-[8px] uppercase font-bold tracking-widest hover:text-white">Change Patient ID</button>
+        
+        <button onclick="clearTargetID()" class="mt-6 text-zinc-600 text-[8px] uppercase font-bold tracking-widest hover:text-white block mx-auto">Change Patient ID</button>
     </div>
 
     <div id="alert-panel" class="hidden w-full max-w-sm bg-red-600 p-8 rounded-[2rem] animate-pulse shadow-[0_0_60px_rgba(220,38,38,0.6)] border-4 border-white/20">
@@ -80,7 +82,6 @@
         audio.loop = true;
 
         let currentTargetID = localStorage.getItem('linked_rescue_id');
-        let isArmed = false;
 
         window.onload = () => {
             if (!currentTargetID) {
@@ -88,8 +89,6 @@
                 document.getElementById('status-card').classList.add('hidden');
             } else {
                 showMonitoringLabel();
-                // Si ya estaba armado en la sesión anterior, podrías auto-armar, 
-                // pero el navegador bloquea el audio sin clic. Por eso esperamos al botón.
             }
         };
 
@@ -99,7 +98,7 @@
                 localStorage.setItem('linked_rescue_id', id);
                 location.reload();
             } else {
-                alert("Invalid ID. Must start with MC-");
+                alert("Invalid ID. Use MC-XXXX format.");
             }
         };
 
@@ -115,54 +114,53 @@
         }
 
         window.armSystem = async () => {
-            // Desbloqueo de audio obligatorio por política de navegador
-            audio.play().then(() => {
+            // Intentar desbloquear audio
+            try {
+                await audio.play();
                 audio.pause();
                 audio.currentTime = 0;
-                isArmed = true;
-                updateUIState(true);
-                startListening(); 
-            }).catch(e => alert("Please allow audio to monitor alerts."));
+                
+                // CAMBIO VISUAL FORZADO
+                updateUIState();
+                startListening();
+                
+            } catch (e) {
+                alert("Click OK to enable Tactical Audio Monitoring.");
+                // Reintento tras el alert (que cuenta como interacción)
+                updateUIState();
+                startListening();
+            }
             
-            try {
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    await getToken(messaging, { vapidKey: 'TU_VAPID_KEY_AQUI' });
-                }
-            } catch (err) { console.warn("Push not active yet."); }
+            // Permisos de Notificación
+            Notification.requestPermission();
         };
 
-        function updateUIState(armed) {
-            const stateText = document.getElementById('monitor-state');
+        function updateUIState() {
+            const stateText = document.getElementById('monitor-state-text');
             const icon = document.getElementById('status-icon');
             const btn = document.getElementById('arm-btn');
 
-            if(armed) {
-                stateText.innerText = "Monitoring Active";
-                stateText.classList.replace('text-zinc-400', 'text-[#ccff00]');
-                icon.classList.replace('bg-zinc-800', 'bg-[#ccff00]/20');
-                icon.classList.add('border-[#ccff00]', 'animate-pulse');
-                document.getElementById('emoji-state').innerText = "🛡️";
-                btn.innerText = "System Armed";
-                btn.classList.replace('bg-[#ccff00]', 'bg-zinc-800');
-                btn.classList.replace('text-black', 'text-zinc-500');
-                btn.disabled = true;
-            }
+            stateText.innerText = "Monitoring Active";
+            stateText.className = "text-[#ccff00] font-black uppercase text-[10px] tracking-[0.2em] mb-6 animate-pulse";
+            
+            icon.className = "w-20 h-20 bg-[#ccff00]/20 rounded-full mx-auto mb-6 flex items-center justify-center border-2 border-[#ccff00] shadow-[0_0_20px_rgba(204,255,0,0.2)] transition-all";
+            document.getElementById('emoji-state').innerText = "🛡️";
+            
+            // Ocultar botón de armar para evitar re-clicks
+            btn.classList.add('hidden');
         }
 
         function startListening() {
-            if (!currentTargetID || !isArmed) return;
+            if (!currentTargetID) return;
             
             const alertRef = ref(db, `alerts/${currentTargetID}`);
-            
-            // Limpiamos escuchas previas para evitar duplicados
-            off(alertRef);
+            off(alertRef); // Limpiar
 
             onValue(alertRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data && data.status === 'CRITICAL') {
                     const now = Date.now();
-                    // Filtro de 5 minutos para asegurar que la alerta es actual
+                    // Filtro de tiempo: solo si la alerta ocurrió hace menos de 5 min
                     if ((now - data.timestamp) < 300000) { 
                         triggerVisualAlert(data);
                     }
@@ -178,15 +176,14 @@
             document.getElementById('patient-info').innerText = alertData.patientName || "Unknown Patient";
             document.getElementById('alert-time').innerText = new Date(alertData.timestamp).toLocaleTimeString();
             
-            if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
-            audio.play().catch(() => console.log("Audio waiting..."));
+            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+            audio.play().catch(e => console.log("Audio play blocked"));
 
             document.getElementById('location-btn').onclick = () => {
                 if(alertData.location && alertData.location !== "No GPS Data") {
-                    // Corregido: URL de Google Maps limpia
                     window.open(`https://www.google.com/maps?q=${alertData.location}`, '_blank');
                 } else {
-                    alert("No location data provided.");
+                    alert("Location data unavailable.");
                 }
             };
         }
