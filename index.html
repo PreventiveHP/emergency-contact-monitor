@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>MontCode™ Rescue Receiver</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="manifest" href="manifest.json">
@@ -24,6 +24,7 @@
         <button onclick="clearTargetID()" class="mt-4 text-zinc-600 text-[8px] uppercase tracking-widest hover:text-white transition-colors">Reset Linked ID</button>
     </div>
 
+    <!-- PANEL DE ALARMA SOS -->
     <div id="alert-panel" class="fixed inset-0 bg-red-600 z-[100] flex flex-col items-center justify-center p-8 hidden">
         <div class="absolute inset-0 bg-red-700 animate-pulse opacity-50"></div>
         <div class="relative z-10 flex flex-col items-center text-center">
@@ -32,10 +33,15 @@
                 <p class="text-zinc-200 text-[10px] uppercase tracking-widest mb-2 font-black">Rescue Signal Detected</p>
                 <p class="text-4xl font-black uppercase tracking-tighter" id="alert-name">---</p>
                 <hr class="my-4 border-white/20">
-                <p class="text-sm font-mono font-bold opacity-90" id="alert-coords">Awaiting GPS...</p>
+                <p class="text-sm font-mono font-bold opacity-90 mb-4" id="alert-coords">Awaiting GPS...</p>
+                
+                <!-- BOTÓN PARA ABRIR MAPAS DIRECTAMENTE -->
+                <button id="map-btn" onclick="openMap()" class="hidden w-full bg-white text-black font-black py-3 rounded-xl uppercase tracking-widest text-xs shadow-lg active:scale-95 transition-all">
+                    📍 Open in Google Maps
+                </button>
             </div>
             
-            <button onclick="stopAlarm()" class="mt-12 bg-white text-red-600 px-16 py-5 rounded-full font-black uppercase tracking-widest shadow-2xl active:scale-90 transition-all border-b-4 border-zinc-300">
+            <button onclick="stopAlarm()" class="mt-12 bg-black text-white px-16 py-5 rounded-full font-black uppercase tracking-widest shadow-2xl active:scale-90 transition-all border border-white/20 text-xs">
                 Silence Alarm
             </button>
         </div>
@@ -56,8 +62,8 @@
             appId: "1:988300151844:web:b1a31275a9555de98a9cb1"
         };
 
-        // LÓGICA DE PAREO DINÁMICO
         let PATIENT_ID = localStorage.getItem('monitor_target_id');
+        let currentGPS = "0,0";
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
@@ -67,6 +73,7 @@
         let alarmOscillator = null;
 
         function playSirene() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.type = 'sawtooth';
@@ -97,7 +104,6 @@
         };
 
         window.armSystem = async () => {
-            // Si no hay ID, lo pedimos antes de armar
             if (!PATIENT_ID) {
                 const input = prompt("ENTER PATIENT RESCUE ID (from Sender app):");
                 if (!input) return;
@@ -112,28 +118,37 @@
             document.getElementById('status-sub').innerText = "Tactical Link Established";
             document.getElementById('status-sub').classList.add('text-[#ccff00]', 'animate-pulse');
 
-            // ESCUCHA DIRECTA AL NODO DEL PACIENTE
+            // ESCUCHA EXACTA DE LA TUBERÍA FIREBASE DEL SENDER
             const alertRef = ref(db, 'alerts/' + PATIENT_ID);
             onValue(alertRef, (snap) => {
                 const data = snap.val();
-                if (data) {
-                    // Validamos que la señal sea reciente (últimos 30 seg)
-                    const isRecent = (Date.now() - data.timestamp < 30000);
-                    if (isRecent) {
-                        triggerAlarm(data);
-                    }
+                if (data && data.status === "EMERGENCY_TAP") {
+                    currentGPS = data.location || "0,0";
+                    triggerAlarm(data);
                 }
             });
         };
 
         function triggerAlarm(data) {
             document.getElementById('alert-panel').classList.remove('hidden');
-            document.getElementById('alert-name').innerText = data.patientName || "Unknown";
-            document.getElementById('alert-coords').innerText = data.location || "GPS Hidden";
+            document.getElementById('alert-name').innerText = data.patientName || data.name || "Unknown Patient";
+            document.getElementById('alert-coords').innerText = "GPS: " + currentGPS;
             
+            if (currentGPS && currentGPS !== "0,0" && currentGPS !== "No GPS Data") {
+                document.getElementById('map-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('map-btn').classList.add('hidden');
+            }
+
             if (!alarmOscillator) alarmOscillator = playSirene();
             if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
         }
+
+        window.openMap = () => {
+            if (currentGPS && currentGPS !== "0,0" && currentGPS !== "No GPS Data") {
+                window.open(`https://www.google.com/maps?q=${currentGPS}`, '_blank');
+            }
+        };
 
         window.stopAlarm = () => {
             if (alarmOscillator) {
@@ -142,6 +157,11 @@
             }
             document.getElementById('alert-panel').classList.add('hidden');
         };
+
+        // Auto-arm si ya hay un ID guardado previamente
+        if (PATIENT_ID) {
+            window.onload = () => { armSystem(); };
+        }
     </script>
 </body>
 </html>
